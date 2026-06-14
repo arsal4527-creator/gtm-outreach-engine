@@ -1,0 +1,1244 @@
+{
+  "name": "GTM Outreach \u2014 1) Scrape, Enrich, Personalize, Send",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "n01",
+      "name": "When clicking 'Execute workflow'",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 8,
+              "triggerAtMinute": 30
+            }
+          ]
+        }
+      },
+      "id": "n02",
+      "name": "Every Morning",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ====== EDIT YOUR SETTINGS HERE ======\nreturn [{ json: {\n  send_mode: 'draft',                                   // 'draft' = create Gmail drafts for your review. 'send' = fully automatic.\n  run_scraper: false,                                    // false = reuse the latest export instead of scraping fresh\n  jobs_dir: '/Users/app/Desktop/GTM_Jobs',\n  scraper_dir: '/Users/app/gtm-job-scraper',\n  outreach_dir: '/Users/app/gtm-job-scraper/outreach',\n  work_dir: '/tmp/gtm_outreach',\n  max_employees: 120,                                    // skip companies estimated bigger than this (AI estimate from JD)\n  model: 'claude-haiku-4-5-20251001',                           // bump to 'claude-opus-4-8' for max quality\n  chrome: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'\n} }];"
+      },
+      "id": "n03",
+      "name": "Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        200,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "command": "={{ 'mkdir -p ' + $json.work_dir + ' && cat ' + $json.outreach_dir + '/profile.md' }}"
+      },
+      "id": "n04",
+      "name": "Load Profile",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        400,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "command": "={{ 'cat ' + $('Config').first().json.outreach_dir + '/resume_template.html' }}"
+      },
+      "id": "n05",
+      "name": "Load Template",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        600,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "command": "={{ $('Config').first().json.run_scraper ? 'cd ' + $('Config').first().json.scraper_dir + ' && python3 scraper.py' : 'echo scrape skipped' }}"
+      },
+      "id": "n06",
+      "name": "Run Scraper",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        800,
+        380
+      ],
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "command": "={{ 'ls -t ' + $('Config').first().json.jobs_dir + '/gtm_jobs_*.json | head -1' }}"
+      },
+      "id": "n07",
+      "name": "Find Latest Export",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1000,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "fileSelector": "={{ $json.stdout.trim() }}",
+        "options": {}
+      },
+      "id": "n08",
+      "name": "Read Jobs File",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        1200,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "fromJson",
+        "destinationKey": "data",
+        "options": {}
+      },
+      "id": "n09",
+      "name": "Parse Jobs",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        1400,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "data",
+        "options": {}
+      },
+      "id": "n10",
+      "name": "Split Out Jobs",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        1600,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const STRONG = /gtm|go.to.market/i;\nconst slug = s => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');\nconst byCompany = new Map();\nfor (const item of $input.all()) {\n  const j = item.json;\n  const company = (j.company || '').trim();\n  const title = (j.position || '').trim();\n  if (!company || !title) continue;\n  if (!STRONG.test(title)) continue;\n  const score = /gtm engineer|go.to.market engineer/i.test(title) ? 2 : 1;\n  const key = company.toLowerCase();\n  const cur = byCompany.get(key);\n  if (!cur || score > cur.score) byCompany.set(key, { score, job: j });\n}\nreturn [...byCompany.values()]\n  .sort((a, b) => b.score - a.score)\n  .map(({ job }) => ({ json: { ...job, company_slug: slug(job.company) } }));"
+      },
+      "id": "n11",
+      "name": "Prepare Jobs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1800,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "url",
+          "value": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Contacted"
+        },
+        "options": {}
+      },
+      "id": "n12",
+      "name": "Get Contacted Log",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2000,
+        380
+      ],
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "Q3PiNCYkT2XeUu0t",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const contacted = new Set(\n  $input.all()\n    .map(i => ((i.json.company || '') + '').trim().toLowerCase())\n    .filter(Boolean)\n);\nreturn $('Prepare Jobs').all().filter(i => !contacted.has(i.json.company.trim().toLowerCase()));"
+      },
+      "id": "n13",
+      "name": "Filter New Companies",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "maxItems": 5
+      },
+      "id": "n14",
+      "name": "Limit Per Run",
+      "type": "n8n-nodes-base.limit",
+      "typeVersion": 1,
+      "position": [
+        2400,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.contact_found }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "n21",
+      "name": "Contact Found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3800,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ 'https://' + ($json.company_domain || 'no-domain.invalid') }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          },
+          "timeout": 20000
+        }
+      },
+      "id": "n25",
+      "name": "Fetch Company Site",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4600,
+        220
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const job = $('Pick Decision Maker').item.json;\nconst raw = ($input.item.json.data || '') + '';\nconst site = raw\n  .replace(/<script[\\s\\S]*?<\\/script>/gi, ' ')\n  .replace(/<style[\\s\\S]*?<\\/style>/gi, ' ')\n  .replace(/<[^>]+>/g, ' ')\n  .replace(/\\s+/g, ' ')\n  .slice(0, 4000);\nconst profile = $('Load Profile').first().json.stdout;\nconst firstName = (job.contact_name || '').split(' ')[0] || 'there';\nconst jd = (job.job_description || '').replace(/visit link.*/i,'').trim();\nconst prompt = `You are writing ONE cold email for Arsal, an OUTBOUND go-to-market (GTM) engineer, to ${firstName} (${job.contact_title}) at ${job.company}, which is HIRING a ${job.position}.\nArsal IS interested in that role. This email is a direct, proactive application: instead of dropping a resume into the ATS, he reaches out to the decision-maker and shows what he'd actually build for them. Earn a reply by being relevant and useful, not by asking for a job.\n\nWHO ARSAL IS: a GTM engineer who builds automated OUTBOUND revenue systems. Clay + AI to enrich and segment target lists, personalized cold outreach at scale, multi-domain cold-email infrastructure with strong deliverability (SPF/DKIM/DMARC), lead scoring/routing, and replacing manual SDR work with signal-based OUTBOUND campaigns. OUTBOUND prospecting, NOT inbound.\n\nPRIMARY INTELLIGENCE = THE JOB DESCRIPTION. Read it first. It reveals the gap they want this role to own, the tools/stack they already run (Clay, Apollo, Outreach, Smartlead, HubSpot, Salesforce, Instantly...), and their outbound maturity. Build the email from that. If JD is thin, infer from role title + site, stay outbound.\n\n=== DATA ===\nROLE: ${job.position}\nJOB DESCRIPTION (primary): ${jd ? jd.slice(0, 2800) : '(not available - infer from role + site)'}\nCOMPANY: ${job.company} (${job.company_website || 'website unknown'})\nWEBSITE TEXT (secondary): ${site || '(unavailable)'}\nDECISION MAKER: ${job.contact_name}, ${job.contact_title}\n\n=== ARSAL PROFILE (use only real facts) ===\n${profile}\n\n=== HARD CONTENT RULES ===\n1. STRICTLY OUTBOUND. Never pitch inbound tactics \u2014 no website-visitor de-anonymization, no RB2B, no \"track who visits your site\", no site-intent capture.\n2. NEVER pitch the company something their own product already does, and never pitch what they obviously already have.\n3. The HOOK insight must be RELEVANT to what they're hiring this role to fix (from the JD) or a real gap in their OUTBOUND motion. If it could be sent to any company, rewrite it.\n4. The PLAY = one concrete OUTBOUND GTM-engineering move tailored to the gap (e.g. Clay enrichment + AI personalization on their cold outbound, fixing deliverability across sending domains, replacing manual SDR list-building with an automated signal-based engine, scoring/segmenting their cold list). Pick the highest-leverage move for THEM; never reuse one template across companies.\n5. Back it with Arsal's real experience lightly; never brag or dump numbers.\n\n=== STRUCTURE (5 short parts, in this order) ===\n1) OPENER (1 sentence): acknowledge their open ${job.position} role and that you're reaching out directly rather than vanishing into the applicant pile. Casual, self-aware, a little confident \u2014 never desperate. VARY the wording each time (e.g. \"Saw you're hiring a ${job.position} \u2014 figured a direct note beats another resume in the stack.\" or \"Noticed the ${job.position} opening; the useful stuff never fits in a resume, so reaching out here instead.\"). This sets up why you're emailing.\n2) HOOK (1 sentence): the specific, relevant insight/gap.\n3) PLAY (2 sentences): the concrete outbound move, mechanism named.\n4) CREDIBILITY (1 sentence): light proof, e.g. \"I've built these outbound systems before.\"\n5) CTA (1 sentence): soft, low-friction.\nSign off with the name/style from Arsal profile.\n\n=== TONE BAR EXAMPLE (match the human tone and specificity; do NOT copy its wording or structure verbatim) ===\nLeo,\nSaw you're hiring a GTM engineer \u2014 figured a direct note would land better than another resume in the pile.\nYour post lists Clay and Smartlead but mentions reps still building lists by hand, which usually means the outbound engine stalls whenever someone gets busy.\nOne move: a Clay workflow that auto-builds and enriches your ICP lists from intent triggers, writes the first line per lead, and drops them into Smartlead, so list-building stops being a person's full-time job.\nI've built these outbound systems before. Happy to map what it'd look like for your stack.\nWorth a quick call this week?\nBest,\nArsal\n\n=== STYLE RULES ===\n- 90 to 140 words. Plain text. First name. Contractions, short lines, plain words.\n- BANNED: \"I hope this finds you well\", \"I wanted to reach out\", \"I came across\", \"excited\", \"passionate\", \"leverage\", \"synergy\", \"fast-paced\", \"game-changer\", \"delve\", \"robust\", \"seamless\", \"elevate\", \"unlock\", \"spearhead\", corporate/AI filler. No stacked dashes, no tidy three-part lists.\n- Max ONE question. Confident but not arrogant.\n- Resume attached: at most one short casual aside, or skip.\n\nAlso produce: gtm_insights = 3 short specific observations about their OUTBOUND/GTM and stack; one_liner = the custom outbound play in one sentence.\n\nSUBJECT LINE: write it like a real person emailing a peer, NOT a marketer. 2 to 4 words, lowercase, casual and specific. The kind of internal-looking note someone actually opens.\nGOOD vibe: \"your outbound setup\", \"quick idea for ${job.company}\", \"${job.company} cold outreach\", \"the manual list problem\", \"your gtm hire\", \"outbound idea\".\nNEVER: title case, exclamation marks, emojis, colons, hype (\"Unlock Pipeline Growth\"), generic (\"Quick question\"), or application-style (\"Application for GTM Engineer\"). If it sounds like a marketing email or a tool generated it, rewrite it.\n\nReturn ONLY valid JSON, no markdown, no code fences:\n{\"gtm_insights\":[\"...\",\"...\",\"...\"],\"one_liner\":\"...\",\"email_subject\":\"...\",\"email_body\":\"...\"}`;\nreturn { json: { ...job, prompt } };"
+      },
+      "id": "n26",
+      "name": "Build Strategist Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4800,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "anthropicApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: $('Config').first().json.model, max_tokens: 1500, messages: [{ role: 'user', content: $json.prompt }] }) }}",
+        "options": {}
+      },
+      "id": "n27",
+      "name": "Claude: Strategy + Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        5000,
+        220
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "anthropicApi": {
+          "id": "bT4vqK9QEP0Fstbp",
+          "name": "Anthropic account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const job = $('Build Strategist Prompt').item.json;\nconst res = $input.item.json || {};\nlet text = (res.content && res.content[0] && res.content[0].text) || '{}';\ntext = text.replace(/^```(json)?\\s*/m, '').replace(/```\\s*$/m, '').trim();\nlet out;\ntry { out = JSON.parse(text); }\ncatch (e) { out = { email_subject: 'GTM engineer for ' + job.company, email_body: text, one_liner: '', gtm_insights: [] }; }\nconst { prompt, ...rest } = job;\nreturn { json: { ...rest,\n  gtm_insights: Array.isArray(out.gtm_insights) ? out.gtm_insights.join(' | ') : ((out.gtm_insights || '') + ''),\n  one_liner: out.one_liner || '',\n  email_subject: out.email_subject || ('GTM engineer for ' + job.company),\n  email_body: out.email_body || '',\n} };"
+      },
+      "id": "n28",
+      "name": "Parse Strategy",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5200,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const job = $('Parse Strategy').item.json;\nconst profile = $('Load Profile').first().json.stdout;\nconst prompt = [\n  'Create a tailored one-page resume for this job application.',\n  '',\n  'MY PROFILE (the only source of truth \u2014 use ONLY facts that appear here; never invent employers, titles, dates, schools, or metrics):',\n  profile,\n  '',\n  'TARGET ROLE: ' + job.position + ' at ' + job.company,\n  'JOB DESCRIPTION: ' + ((job.job_description || '') + '').slice(0, 2000),\n  'COMPANY GTM CONTEXT: ' + (job.gtm_insights || ''),\n  '',\n  'Reorder and rephrase my profile to emphasise what this role needs. Lead with the most relevant experience and skills.',\n  '',\n  'Return ONLY the inner HTML for the resume body (no <html>, <head>, <body> tags, no markdown fences). Use this structure: <h1> for my name, <p class=\"contact\"> for the contact line, <h2> for section titles, <h3> with <span class=\"dates\"> for roles, <ul><li> for achievement bullets, <p class=\"skills\"> for skill lists. Keep it to one page worth of content.'\n].join('\\n');\nreturn { json: { ...job, prompt } };"
+      },
+      "id": "n29",
+      "name": "Build Resume Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5400,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "anthropicApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: $('Config').first().json.model, max_tokens: 3000, messages: [{ role: 'user', content: $json.prompt }] }) }}",
+        "options": {}
+      },
+      "id": "n30",
+      "name": "Claude: Resume",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        5600,
+        220
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "anthropicApi": {
+          "id": "bT4vqK9QEP0Fstbp",
+          "name": "Anthropic account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const job = $('Build Resume Prompt').item.json;\nconst res = $input.item.json || {};\nlet html = (res.content && res.content[0] && res.content[0].text) || '';\nhtml = html.replace(/^```(html)?\\s*/m, '').replace(/```\\s*$/m, '').trim();\nconst template = $('Load Template').first().json.stdout;\nconst { prompt, ...rest } = job;\nreturn { json: { ...rest, resume_html: template.replace('{{CONTENT}}', html) } };"
+      },
+      "id": "n31",
+      "name": "Build Resume HTML",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5800,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "toText",
+        "sourceProperty": "resume_html",
+        "options": {
+          "fileName": "={{ $json.company_slug + '.html' }}"
+        }
+      },
+      "id": "n32",
+      "name": "Convert To HTML File",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        6000,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "={{ $('Config').first().json.work_dir + '/' + $('Build Resume HTML').item.json.company_slug + '.html' }}",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "id": "n33",
+      "name": "Write HTML",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        6200,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "command": "={{ '\"' + $('Config').first().json.chrome + '\" --headless --disable-gpu --no-pdf-header-footer --print-to-pdf=\"' + $('Config').first().json.work_dir + '/' + $('Build Resume HTML').item.json.company_slug + '.pdf\" \"' + $('Config').first().json.work_dir + '/' + $('Build Resume HTML').item.json.company_slug + '.html\"' }}"
+      },
+      "id": "n34",
+      "name": "Render PDF",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        6400,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "fileSelector": "={{ $('Config').first().json.work_dir + '/' + $('Build Resume HTML').item.json.company_slug + '.pdf' }}",
+        "options": {}
+      },
+      "id": "n35",
+      "name": "Read PDF",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        6600,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const full = $('Build Resume HTML').item.json;\nconst { resume_html, prompt, ...job } = full;\nconst binary = $input.item.binary || {};\nif (binary.data) {\n  binary.data.fileName = 'Resume - ' + (job.company || 'Company') + '.pdf';\n  binary.data.mimeType = 'application/pdf';\n}\nreturn { json: job, binary };"
+      },
+      "id": "n36",
+      "name": "Finalize Attachment",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6800,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "c3",
+              "leftValue": "={{ $('Config').first().json.send_mode }}",
+              "rightValue": "send",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "n37",
+      "name": "Send Mode?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        7000,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.contact_email }}",
+        "subject": "={{ $json.email_subject }}",
+        "emailType": "text",
+        "message": "={{ $json.email_body }}",
+        "options": {
+          "appendAttribution": false,
+          "attachmentsUi": {
+            "attachmentsBinary": [
+              {
+                "property": "data"
+              }
+            ]
+          }
+        }
+      },
+      "id": "n38",
+      "name": "Gmail: Send",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        7200,
+        120
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "sOKaCKTPFpHgCHLm",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "draft",
+        "subject": "={{ $json.email_subject }}",
+        "emailType": "text",
+        "message": "={{ $json.email_body }}",
+        "options": {
+          "sendTo": "={{ $json.contact_email }}",
+          "attachmentsUi": {
+            "attachmentsBinary": [
+              {
+                "property": "data"
+              }
+            ]
+          }
+        }
+      },
+      "id": "n39",
+      "name": "Gmail: Draft",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        7200,
+        320
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "sOKaCKTPFpHgCHLm",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const cfg = $('Config').first().json;\nconst job = $('Finalize Attachment').item.json;\nconst gm = $input.item.json || {};\nconst today = new Date().toISOString().slice(0, 10);\nreturn { json: {\n  date: today,\n  company: job.company || '',\n  position: job.position || '',\n  location: job.location || '',\n  job_url: job.url || '',\n  company_headcount: (job.company_headcount || '') + '',\n  company_website: job.company_website || '',\n  company_linkedin: job.company_linkedin_real || job.company_linkedin || '',\n  contact_name: job.contact_name || '',\n  contact_title: job.contact_title || '',\n  contact_email: job.contact_email || '',\n  contact_linkedin: job.contact_linkedin || '',\n  one_liner: job.one_liner || '',\n  gtm_insights: job.gtm_insights || '',\n  email_subject: job.email_subject || '',\n  status: cfg.send_mode === 'send' ? 'sent' : 'drafted',\n  thread_id: gm.threadId || (gm.message && gm.message.threadId) || '',\n  message_id: gm.id || (gm.message && gm.message.id) || '',\n  followups: 0,\n  last_touch: today,\n} };"
+      },
+      "id": "n40",
+      "name": "Log Row",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        7400,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const j = $input.item.json;\nconst today = new Date().toISOString().slice(0, 10);\nreturn { json: {\n  date: today,\n  company: j.company || '',\n  position: j.position || '',\n  location: j.location || '',\n  job_url: j.url || '',\n  company_headcount: (j.company_headcount || '') + '',\n  company_website: j.company_website || '',\n  company_linkedin: j.company_linkedin_real || j.company_linkedin || '',\n  contact_name: j.contact_name || '',\n  contact_title: j.contact_title || '',\n  contact_email: '',\n  contact_linkedin: j.contact_linkedin || '',\n  one_liner: '',\n  gtm_insights: '',\n  email_subject: '',\n  status: j.skip_reason || 'skipped',\n  thread_id: '',\n  message_id: '',\n  followups: 0,\n  last_touch: today,\n} };"
+      },
+      "id": "n41",
+      "name": "Log Skipped",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4600,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "url",
+          "value": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Contacted"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "n42",
+      "name": "Append To Log",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        7600,
+        380
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "Q3PiNCYkT2XeUu0t",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://api.hunter.io/v2/domain-search",
+        "authentication": "none",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "domain",
+              "value": "={{ $json.company_domain }}"
+            },
+            {
+              "name": "limit",
+              "value": "25"
+            },
+            {
+              "name": "type",
+              "value": "personal"
+            },
+            {
+              "name": "api_key",
+              "value": "YOUR_HUNTER_API_KEY"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "n17b",
+      "name": "Hunter: Domain Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3150,
+        380
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const job = $('Resolve Domain').item.json;\nconst r = $input.item.json || {};\nconst data = r.data || {};\nconst emails = Array.isArray(data.emails) ? data.emails : [];\nconst domain = data.domain || '';\nfunction rank(pos){\n  pos=(pos||'').toLowerCase();\n  if(/founder|co-?founder|owner/.test(pos)) return 0;\n  if(/\\bceo\\b|chief executive/.test(pos)) return 1;\n  if(/\\bcro\\b|chief revenue/.test(pos)) return 2;\n  if(/(vp|vice president|head|director).*(revenue|sales)/.test(pos)) return 3;\n  if(/(vp|vice president|head|director).*(growth)/.test(pos)) return 4;\n  if(/\\bcmo\\b|(vp|vice president|head|director).*(marketing)/.test(pos)) return 5;\n  if(/revenue operations|revops|sales operations/.test(pos)) return 6;\n  if(/founder|chief|vp|vice president|head|director|lead/.test(pos)) return 7;\n  return 9;\n}\nlet best=null;\nfor(const e of emails){\n  const email=((e.value||'')+'').trim();\n  if(!email.includes('@')) continue;\n  const conf=Number(e.confidence||0);\n  if(conf < 50) continue;\n  const score = rank(e.position)*1000 - conf;\n  if(!best || score < best.score) best={score, e, conf};\n}\nif(!best){\n  return { json: { ...job, contact_found:false, company_domain:domain,\n    skip_reason: emails.length ? 'no_confident_contact' : 'no_emails_found' } };\n}\nconst e=best.e;\nconst name=((e.first_name||'')+' '+(e.last_name||'')).trim();\nreturn { json: { ...job,\n  contact_found:true,\n  company_domain: domain,\n  company_website: domain ? ('https://'+domain) : (job.company_website||''),\n  company_headcount: job.company_headcount || '',\n  contact_name: name,\n  contact_title: e.position || '',\n  contact_email: e.value,\n  contact_linkedin: e.linkedin || '',\n  email_score: best.conf } };"
+      },
+      "id": "n18b",
+      "name": "Pick Decision Maker",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3300,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const job = $input.item.json;\nlet domain = (job.company_domain || '').trim();\nif (!domain) {\n  try {\n    const res = await this.helpers.httpRequest({\n      method: 'GET',\n      url: 'https://autocomplete.clearbit.com/v1/companies/suggest',\n      qs: { query: job.company }, json: true,\n    });\n    if (Array.isArray(res) && res.length) domain = (res[0].domain || '').trim();\n  } catch (e) { domain = ''; }\n}\nreturn { json: { ...job, company_domain: domain } };"
+      },
+      "id": "n16b",
+      "name": "Resolve Domain",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2900,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "anthropicApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: $('Config').first().json.model, max_tokens: 60, messages: [{ role: 'user', content: 'You estimate company size. Using the company name and job description, give your single best estimate of TOTAL employee headcount as an integer. Weigh signals: funding stage, \\'founding/first/early\\' GTM language, team-size mentions, customer scale, number of products/offices. Reply with ONLY JSON, no prose: {\"employees\": <integer>}. Company: ' + $json.company + '. JD: ' + (($json.job_description||'')+'').slice(0,1500) }] }) }}",
+        "options": {}
+      },
+      "id": "nsz1",
+      "name": "Estimate Size",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3000,
+        560
+      ],
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "anthropicApi": {
+          "id": "bT4vqK9QEP0Fstbp",
+          "name": "Anthropic account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const job = $('Resolve Domain').item.json;\nconst res = $input.item.json || {};\nlet txt = (res.content && res.content[0] && res.content[0].text) || '';\nconst m = txt.match(/\\d[\\d,]*/);\nconst emp = m ? parseInt(m[0].replace(/,/g,'')) : 0;\nconst cap = Number($('Config').first().json.max_employees || 50);\nconst ok = (!emp) || emp <= cap;   // unknown estimate -> don't filter out\nreturn { json: { ...job, est_employees: emp, size_ok: ok, skip_reason: ok ? '' : ('too_big_~' + emp) } };"
+      },
+      "id": "nsz2",
+      "name": "Check Size",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3000,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "cs1",
+              "leftValue": "={{ $json.size_ok }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "nsz3",
+      "name": "Size OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3000,
+        840
+      ]
+    }
+  ],
+  "connections": {
+    "When clicking 'Execute workflow'": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Every Morning": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Load Profile",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Profile": {
+      "main": [
+        [
+          {
+            "node": "Load Template",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Template": {
+      "main": [
+        [
+          {
+            "node": "Run Scraper",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run Scraper": {
+      "main": [
+        [
+          {
+            "node": "Find Latest Export",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Latest Export": {
+      "main": [
+        [
+          {
+            "node": "Read Jobs File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Jobs File": {
+      "main": [
+        [
+          {
+            "node": "Parse Jobs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Jobs": {
+      "main": [
+        [
+          {
+            "node": "Split Out Jobs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out Jobs": {
+      "main": [
+        [
+          {
+            "node": "Prepare Jobs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Jobs": {
+      "main": [
+        [
+          {
+            "node": "Get Contacted Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Contacted Log": {
+      "main": [
+        [
+          {
+            "node": "Filter New Companies",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter New Companies": {
+      "main": [
+        [
+          {
+            "node": "Limit Per Run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limit Per Run": {
+      "main": [
+        [
+          {
+            "node": "Resolve Domain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Contact Found?": {
+      "main": [
+        [
+          {
+            "node": "Fetch Company Site",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Skipped",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Company Site": {
+      "main": [
+        [
+          {
+            "node": "Build Strategist Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Strategist Prompt": {
+      "main": [
+        [
+          {
+            "node": "Claude: Strategy + Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude: Strategy + Email": {
+      "main": [
+        [
+          {
+            "node": "Parse Strategy",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Strategy": {
+      "main": [
+        [
+          {
+            "node": "Build Resume Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Resume Prompt": {
+      "main": [
+        [
+          {
+            "node": "Claude: Resume",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude: Resume": {
+      "main": [
+        [
+          {
+            "node": "Build Resume HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Resume HTML": {
+      "main": [
+        [
+          {
+            "node": "Convert To HTML File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert To HTML File": {
+      "main": [
+        [
+          {
+            "node": "Write HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write HTML": {
+      "main": [
+        [
+          {
+            "node": "Render PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Render PDF": {
+      "main": [
+        [
+          {
+            "node": "Read PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read PDF": {
+      "main": [
+        [
+          {
+            "node": "Finalize Attachment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Finalize Attachment": {
+      "main": [
+        [
+          {
+            "node": "Send Mode?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Mode?": {
+      "main": [
+        [
+          {
+            "node": "Gmail: Send",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Gmail: Draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail: Send": {
+      "main": [
+        [
+          {
+            "node": "Log Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail: Draft": {
+      "main": [
+        [
+          {
+            "node": "Log Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Row": {
+      "main": [
+        [
+          {
+            "node": "Append To Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Skipped": {
+      "main": [
+        [
+          {
+            "node": "Append To Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hunter: Domain Search": {
+      "main": [
+        [
+          {
+            "node": "Pick Decision Maker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pick Decision Maker": {
+      "main": [
+        [
+          {
+            "node": "Contact Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve Domain": {
+      "main": [
+        [
+          {
+            "node": "Estimate Size",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Estimate Size": {
+      "main": [
+        [
+          {
+            "node": "Check Size",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Size": {
+      "main": [
+        [
+          {
+            "node": "Size OK?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Size OK?": {
+      "main": [
+        [
+          {
+            "node": "Hunter: Domain Search",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Skipped",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

@@ -1,0 +1,558 @@
+{
+  "name": "GTM Outreach \u2014 2) Follow-up Engine",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 10,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      },
+      "id": "f01",
+      "name": "Every Day at 10",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ====== EDIT YOUR SETTINGS HERE ======\nreturn [{ json: {\n  followup_after_days: 3,    // wait this many days before bumping\n  max_followups: 2,          // stop after this many bumps\n  model: 'claude-sonnet-4-6',\n  profile_path: '/Users/app/gtm-job-scraper/outreach/profile.md',\n} }];"
+      },
+      "id": "f02",
+      "name": "Config (Follow-ups)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "command": "={{ 'cat ' + $json.profile_path }}"
+      },
+      "id": "f03",
+      "name": "Load Profile (FU)",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        400,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "url",
+          "value": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Contacted"
+        },
+        "options": {}
+      },
+      "id": "f04",
+      "name": "Read Log",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        600,
+        300
+      ],
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "Q3PiNCYkT2XeUu0t",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const cfg = $('Config (Follow-ups)').first().json;\nconst now = Date.now();\nconst due = [];\nfor (const item of $input.all()) {\n  const r = item.json;\n  if ((r.status || '') !== 'sent') continue;\n  if (Number(r.followups || 0) >= cfg.max_followups) continue;\n  if (!r.thread_id) continue;\n  const lt = Date.parse(r.last_touch || r.date || '');\n  if (isNaN(lt)) continue;\n  const days = (now - lt) / 86400000;\n  if (days >= cfg.followup_after_days) due.push(item);\n}\nreturn due;"
+      },
+      "id": "f05",
+      "name": "Select Due",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "maxItems": 15
+      },
+      "id": "f06",
+      "name": "Daily Cap",
+      "type": "n8n-nodes-base.limit",
+      "typeVersion": 1,
+      "position": [
+        1000,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "thread",
+        "operation": "get",
+        "messageId": "={{ $json.thread_id }}",
+        "threadId": "={{ $json.thread_id }}",
+        "simple": false,
+        "options": {}
+      },
+      "id": "f07",
+      "name": "Gmail: Get Thread",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1200,
+        300
+      ],
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "sOKaCKTPFpHgCHLm",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const row = $('Select Due').item.json;\nconst t = $input.item.json || {};\nconst msgs = t.messages || [];\nconst contact = ((row.contact_email || '') + '').toLowerCase();\nconst replied = msgs.some(m => {\n  const headers = (m.payload && m.payload.headers) ? m.payload.headers : [];\n  const fromH = headers.find(h => ((h.name || '') + '').toLowerCase() === 'from');\n  const from = ((fromH ? fromH.value : (m.from || '')) + '').toLowerCase();\n  return contact && from.includes(contact);\n});\nconst last = msgs[msgs.length - 1] || {};\nreturn { json: { ...row, replied, last_msg_id: last.id || '' } };"
+      },
+      "id": "f08",
+      "name": "Assess Reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1400,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "fc1",
+              "leftValue": "={{ $json.replied }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "f09",
+      "name": "Replied?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1600,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const today = new Date().toISOString().slice(0, 10);\nreturn { json: { row_number: $input.item.json.row_number, status: 'replied', last_touch: today } };"
+      },
+      "id": "f10",
+      "name": "Set Replied",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1800,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "mode": "url",
+          "value": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Contacted"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "matchingColumns": [
+            "row_number"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "f11",
+      "name": "Sheets: Mark Replied",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2000,
+        180
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "Q3PiNCYkT2XeUu0t",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const row = $input.item.json;\nconst profile = (($('Load Profile (FU)').first().json.stdout || '') + '').slice(0, 800);\nconst prompt = `Write a short follow-up email (plain text, body only, no subject) from Arsal to ${row.contact_name} (${row.contact_title}) at ${row.company}.\nContext: Arsal already emailed them about their ${row.position} opening with this angle: \"${row.one_liner}\". No reply yet. This is follow-up number ${Number(row.followups || 0) + 1}.\nRules: sound like a real person bumping a thread, not a salesbot. 2 to 4 short sentences. Add ONE new concrete idea Arsal would build for them as their GTM engineer. No apologies, no \"just checking in\", no \"circling back\", no filler. End with one easy question. Use the name/sign-off style from this profile: ${profile}\nReturn ONLY the email body text.`;\nreturn { json: { ...row, prompt } };"
+      },
+      "id": "f12",
+      "name": "Build Bump Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1800,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "anthropicApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: $('Config').first().json.model, max_tokens: 400, messages: [{ role: 'user', content: $json.prompt }] }) }}",
+        "options": {}
+      },
+      "id": "f13",
+      "name": "Claude: Bump",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2000,
+        420
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "anthropicApi": {
+          "id": "bT4vqK9QEP0Fstbp",
+          "name": "Anthropic account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const row = $('Build Bump Prompt').item.json;\nconst res = $input.item.json || {};\nlet text = (res.content && res.content[0] && res.content[0].text) || '';\ntext = text.replace(/^```\\s*/m, '').replace(/```\\s*$/m, '').trim();\nconst { prompt, ...rest } = row;\nreturn { json: { ...rest, bump_text: text } };"
+      },
+      "id": "f14",
+      "name": "Parse Bump",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "reply",
+        "messageId": "={{ $json.last_msg_id }}",
+        "emailType": "text",
+        "message": "={{ $json.bump_text }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "f15",
+      "name": "Gmail: Send Follow-up",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2400,
+        420
+      ],
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "sOKaCKTPFpHgCHLm",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const row = $('Parse Bump').item.json;\nconst today = new Date().toISOString().slice(0, 10);\nreturn { json: { row_number: row.row_number, followups: Number(row.followups || 0) + 1, last_touch: today } };"
+      },
+      "id": "f16",
+      "name": "Prep Update",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2600,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "mode": "url",
+          "value": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Contacted"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "matchingColumns": [
+            "row_number"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "f17",
+      "name": "Sheets: Update Row",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2800,
+        420
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "Q3PiNCYkT2XeUu0t",
+          "name": "Google Sheets account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Every Day at 10": {
+      "main": [
+        [
+          {
+            "node": "Config (Follow-ups)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config (Follow-ups)": {
+      "main": [
+        [
+          {
+            "node": "Load Profile (FU)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Profile (FU)": {
+      "main": [
+        [
+          {
+            "node": "Read Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Log": {
+      "main": [
+        [
+          {
+            "node": "Select Due",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Select Due": {
+      "main": [
+        [
+          {
+            "node": "Daily Cap",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily Cap": {
+      "main": [
+        [
+          {
+            "node": "Gmail: Get Thread",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail: Get Thread": {
+      "main": [
+        [
+          {
+            "node": "Assess Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Assess Reply": {
+      "main": [
+        [
+          {
+            "node": "Replied?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Replied?": {
+      "main": [
+        [
+          {
+            "node": "Set Replied",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Bump Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Replied": {
+      "main": [
+        [
+          {
+            "node": "Sheets: Mark Replied",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Bump Prompt": {
+      "main": [
+        [
+          {
+            "node": "Claude: Bump",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude: Bump": {
+      "main": [
+        [
+          {
+            "node": "Parse Bump",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Bump": {
+      "main": [
+        [
+          {
+            "node": "Gmail: Send Follow-up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail: Send Follow-up": {
+      "main": [
+        [
+          {
+            "node": "Prep Update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep Update": {
+      "main": [
+        [
+          {
+            "node": "Sheets: Update Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

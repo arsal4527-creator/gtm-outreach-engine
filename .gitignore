@@ -1,0 +1,16 @@
+# Real workflow files contain live API keys + sheet IDs — keep local only.
+# Published versions are the *.template.json files (placeholders).
+outreach/workflows/1_gtm_outreach_pipeline.json
+outreach/workflows/2_followup_engine.json
+
+# Scraped data dumps
+output/
+*.csv
+
+# Python
+__pycache__/
+*.pyc
+
+# OS / local
+.DS_Store
+*.local.*
