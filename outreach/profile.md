@@ -16,13 +16,15 @@
 
 ## Summary
 
-GTM engineer who builds the systems behind outbound revenue — Clay + Apollo
-enrichment pipelines, AI-personalized email at the company level (not "Hey
-{first_name}"), and the deliverability infrastructure (SPF/DKIM/DMARC, domain
-warm-up, multi-domain sending) that keeps it all landing in the primary inbox.
-3+ years turning cold lists into pipeline: 71% open rates and $1.6M in tracked
-pipeline across client campaigns. I treat the inbox like prime real estate and
-the GTM stack like an engineering problem.
+GTM engineer who builds the systems behind outbound revenue — integrating
+fragmented stacks (Clay, Apollo, the CRM, the sequencer) into reliable, modular,
+always-on engines instead of one-off campaigns. Clay + AI enrichment and
+personalization at the company level (not "Hey {first_name}"), plus the
+deliverability infrastructure (SPF/DKIM/DMARC, domain warm-up, multi-domain
+sending) that keeps it landing in the primary inbox. 3+ years turning cold lists
+into pipeline: 71% open rates and $1.6M in tracked pipeline. I treat the GTM
+stack like an engineering problem — built to scale and stay maintainable, not
+held together with tape.
 
 ## Experience
 
