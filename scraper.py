@@ -208,20 +208,25 @@ def _extract_job_id(job_url: str) -> str:
 
 
 def _resolve_domain(company: str) -> str:
-    """Resolve a company name to its primary domain via Clearbit autocomplete (free, no auth)."""
+    """Resolve a company name to its primary domain via Clearbit autocomplete.
+    Retries with backoff because Clearbit rate-limits when hit rapidly at scale."""
     if not company:
         return ""
-    try:
-        resp = requests.get(
-            "https://autocomplete.clearbit.com/v1/companies/suggest",
-            params={"query": company},
-            headers={"User-Agent": random.choice(USER_AGENTS)},
-            timeout=8,
-        )
-        data = resp.json()
-        return (data[0]["domain"] if data else "") or ""
-    except Exception:
-        return ""
+    for attempt in range(3):
+        try:
+            resp = requests.get(
+                "https://autocomplete.clearbit.com/v1/companies/suggest",
+                params={"query": company},
+                headers={"User-Agent": random.choice(USER_AGENTS)},
+                timeout=10,
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                return (data[0].get("domain") or "") if data else ""
+            time.sleep(2 * (attempt + 1) + random.uniform(0, 1))  # backoff on 429/etc.
+        except Exception:
+            time.sleep(2 * (attempt + 1))
+    return ""
 
 
 def _domain_from_linkedin(linkedin_url: str) -> str:
@@ -388,14 +393,15 @@ def scrape_linkedin() -> list[Job]:
                 got += 1
             if (i + 1) % 15 == 0:
                 print(f"    ...{i + 1}/{len(deduped)} ({got} with JD)")
-            time.sleep(random.uniform(1.5, 3.0))  # throttle to dodge rate limits
-        domain = _resolve_domain(item["company"])
+            time.sleep(random.uniform(0.7, 1.5))  # light throttle
+        # NOTE: domain is resolved by Hunter (by company name) in the n8n pipeline,
+        # so we no longer call Clearbit here — it was rate-limited and added ~15s/company.
         jobs.append(Job(
             position=item["title"],
             company=item["company"],
             job_description=desc or "(visit link for full description)",
-            company_website=("https://" + domain) if domain else "",
-            company_domain=domain,
+            company_website="",
+            company_domain="",
             company_linkedin=company_page or _guess_linkedin(item["company"]),
             location=item["location"],
             source="LinkedIn",

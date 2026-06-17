@@ -10,6 +10,7 @@
 - **Title:** GTM Engineer
 - **Email:** arsal4527@gmail.com
 - **Phone:** [optional — add if you want it on the resume, else leave blank]
+- **Book a call:** https://calendly.com/arsal4527/gtm-strategy
 - **Location:** Lahore, Pakistan — open to fully remote roles (USA / UK time zones)
 - **LinkedIn:** https://www.linkedin.com/in/arsal-javed-272558401
 - **Upwork:** Top Rated · 93% Job Success · $10K+ earned · 17+ contracts · 755+ hours
@@ -57,14 +58,44 @@ held together with tape.
 ## Projects
 
 - **GTM Job Intelligence & Outreach Engine** — Built an end-to-end automated outbound
-  system in n8n: a multi-source job scraper (LinkedIn, RemoteOK), Apollo enrichment
-  for decision-makers + verified emails, Claude-driven company GTM research and
+  system in n8n: a multi-source job scraper (RemoteOK, Arbeitnow, LinkedIn), Clearbit
+  company resolution + Hunter decision-maker and verified-email lookup, Claude-driven
+  company GTM research and
   per-lead personalization, auto-generated tailored resumes, Gmail sending, and a
   follow-up engine with reply detection. (Self-built — demonstrates the exact GTM-engineering
   motion these roles hire for.)
 - **Clay + LLM personalization system** — Apollo/Google-Maps+Serper sourcing → Clay
   enrichment → LLM first-line generation → MillionVerifier → Instantly, producing
   sending lists where every contact is qualified and every email is personalized.
+
+## Industries I've run outbound for
+
+Across 3+ years of freelance + agency work I've built and run outbound systems
+for B2B companies across many verticals, so I understand how the GTM motion
+shifts by industry:
+
+- **Staffing & recruitment** — Fast Key (CA), Good Shepherd, Recruiting Squad
+- **Construction & home improvement** — Sun Block Patio Covers (US), Xbuild (US), Zerene
+- **Financial services** — Hank Zarihs (UK)
+- **Healthcare & medical** — Cross by Health (AU), FaceTouchUp (US, AI for surgery), Meditation House
+- **SaaS & investors** — Spacebar Ventures (US)
+- **IT / software / web & app dev** — Wadic
+- **Education** — Webanywhere
+- **Accounting** — Lab Ventura
+- **Marketing & agencies** — Maverick Marketing
+- **M&A / consulting** — Resonate Consulting
+- **Ecommerce / fashion** — The Dress Outlet
+- **Music & entertainment** — Promotion Label
+
+## Case studies (real results)
+
+Public case studies from outbound systems I built — results are real, links shareable:
+
+- **Hank Zarihs Associates** — financial services / property finance (UK): built the cold-email engine (90% deliverability) + outbound strategy → **~$1M revenue lift in 90 days** and **20 booked sales calls/month**. https://drive.google.com/file/d/1tepwz1pmPG7gNWvNzB3DODJZCVKcq6mg/view
+- **Sun Block Patio Covers** — construction / home improvement (US): multi-vertical outbound from a cold start → **3× revenue in 90 days, 5× revenue per order, 45+ qualified leads**. https://drive.google.com/file/d/12V-2ZMZXAPCTN1pF5oCIf_v0oWVLrQYq/view
+- **XBuild** — AI construction platform (US): cold outbound into the roofing sector → **20 booked calls in the first month, +35 leads**. https://drive.google.com/file/d/15ua8va9bXzJdgDZIdJwvqRwFALZF-KNM/view
+- **Keentek** — IT / hardware & telecom tech (CCaaS, cybersecurity, UCaaS, SD-WAN, US): 10 campaigns in 2 months → **60% open rate, 8% reply rate, 36 leads, $600k+ revenue**. https://drive.google.com/file/d/1AOB9pyHjQyuzKYQujXmJgb5_zSlvsFZa/view
+- **Promotion Label** — music & entertainment (US): custom Instagram scraper + 5k-emails/day infra (SPF/DKIM/DMARC) → **30% reply rate, ~300% ROI, close to 1M Spotify streams**. https://drive.google.com/file/d/10VV8PoY-Na_nQI5NJhYDi1a35G4f0XJD/view
 
 ## Skills & Tools
 

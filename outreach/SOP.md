@@ -26,8 +26,9 @@ It's built from 3 building blocks:
 | **n8n** | Free software that connects steps together | The assembly line / robot |
 | **Google Sheet** | A spreadsheet that records everything | Your memory / tracker |
 
-Plus three "brains" the assembly line phones for help:
-- **Apollo** — finds the decision maker + their email
+Plus a few services the assembly line phones for help:
+- **Clearbit + Hunter** — Clearbit finds the company's domain (free, no key), then
+  Hunter finds the decision maker and their verified email
 - **Claude (AI)** — writes the emails and resumes
 - **Gmail** — sends from your account
 
@@ -119,17 +120,12 @@ and records every email sent.
 ## ☐ Step 4 — Get your two API keys (10 min)
 
 An "API key" is just a password that lets the robot use a service on your behalf.
+You need **two** keys (Hunter and Claude). Company-domain lookup uses Clearbit's
+free public endpoint, which needs **no key at all**.
 
-### Apollo key (finds the decision maker — FREE)
-Apollo finds *who* the right person is (name, title, LinkedIn). Looking people up
-is free — you do **not** need a paid plan, because we get the actual email from
-Hunter instead.
-1. Go to https://apollo.io and log in (you already use Apollo).
-2. Click your avatar ▸ **Settings** ▸ **Integrations** ▸ **API**.
-3. Click **Create new key**, copy the long string, paste it in your notes app
-   and label it "APOLLO KEY".
-
-### Hunter.io key (finds their email)
+### Hunter.io key (finds the decision maker + their email)
+Hunter looks at a company's domain and returns the people there with their names,
+titles, and verified emails. That's both *who* to contact and *how*.
 1. Go to https://hunter.io and sign up (free).
 2. Click your avatar ▸ **API** (or go to hunter.io/api-keys).
 3. Copy your **API key**, label it "HUNTER KEY" in your notes.
@@ -143,8 +139,8 @@ Hunter instead.
 4. You'll need a few dollars of credit on the account — **Billing ▸ Add credits**.
    $5 lasts a very long time (≈10 companies/day costs pennies).
 
-> ✅ **Done when:** you have three keys saved in your notes: APOLLO KEY, HUNTER KEY,
-> and CLAUDE KEY.
+> ✅ **Done when:** you have two keys saved in your notes: HUNTER KEY and CLAUDE KEY.
+> (No Apollo key, no Clearbit key — domain lookup is free and keyless.)
 
 ---
 
@@ -153,16 +149,10 @@ Hunter instead.
 In n8n, "credentials" are where you store those keys and log into Google. You set
 each up **once**.
 
-In n8n, click **Credentials** in the left sidebar, then **Add credential** for each:
+In n8n, click **Credentials** in the left sidebar, then **Add credential** for each.
+(There's no Apollo or Clearbit credential — Clearbit's domain lookup is keyless.)
 
-### 5a. Apollo
-- Search for and pick **"Header Auth"**.
-- **Name** field: type `Apollo`
-- **Name** (the header name): type `X-Api-Key`
-- **Value**: paste your APOLLO KEY
-- Click **Save**.
-
-### 5b. Hunter
+### 5a. Hunter
 - Add credential ▸ pick **"Query Auth"** (⚠️ *Query* Auth, not Header Auth — Hunter's
   key rides in the URL).
 - **Name** field: type `Hunter`
@@ -170,14 +160,14 @@ In n8n, click **Credentials** in the left sidebar, then **Add credential** for e
 - **Value**: paste your HUNTER KEY
 - Save.
 
-### 5c. Claude
+### 5b. Claude
 - Add credential ▸ **"Header Auth"**.
 - **Name** field: type `Anthropic`
 - **Name** (header name): type `x-api-key`
 - **Value**: paste your CLAUDE KEY
 - Save.
 
-### 5d. Gmail — ⭐ this is how emails send from YOUR account
+### 5c. Gmail — ⭐ this is how emails send from YOUR account
 - Add credential ▸ search **"Gmail OAuth2"**.
 - n8n shows on-screen instructions to create a Google "OAuth" app. It looks
   like a lot, but it's just clicking through Google's setup. Follow n8n's steps:
@@ -186,16 +176,16 @@ In n8n, click **Credentials** in the left sidebar, then **Add credential** for e
 - Then click **"Sign in with Google"** in n8n → choose your Gmail → click
   **Allow**. ✅ That handshake is what lets n8n send as you.
 
-### 5e. Google Sheets
+### 5d. Google Sheets
 - Add credential ▸ **"Google Sheets OAuth2"**.
 - Use the **same** Google Cloud project you just made (turn on the **Sheets API**
   in it too). Sign in, Allow.
 
-> 😅 **Step 5d/5e is the hardest part of the whole setup.** Google's OAuth screens
+> 😅 **Step 5c/5d is the hardest part of the whole setup.** Google's OAuth screens
 > are fiddly. Go slowly, follow n8n's built-in instructions exactly. If you get
 > stuck, screenshot the screen and ask Claude in this chat — describe what you see.
 >
-> ✅ **Done when:** Credentials list shows 5 entries: Apollo, Hunter, Anthropic,
+> ✅ **Done when:** Credentials list shows 4 entries: Hunter, Anthropic,
 > Gmail, Google Sheets, each with a green check.
 
 ---
@@ -214,8 +204,8 @@ The "workflows" are the assembly lines I already built. You just import them.
 Now connect your credentials and sheet to each workflow. Open workflow 1. Some
 boxes (called "nodes") have a small ⚠️ warning — that just means "pick a
 credential here." For each:
-- Boxes named **Apollo: …** → click it → in the credential dropdown pick **Apollo**.
-- The box named **Hunter: Find Email** → pick **Hunter**.
+- The box named **Resolve Domain** (Clearbit) → no credential needed, leave it alone.
+- The box named **Hunter: Domain Search** → pick **Hunter**.
 - Boxes named **Claude: …** → pick **Anthropic**.
 - Boxes named **Gmail: …** → pick **Gmail**.
 - Boxes named **…Log** / **Get Contacted** / **Append** (Google Sheets) → pick
@@ -245,11 +235,12 @@ you can read them. It does **not** send anything until you say so. Let's test sm
 5. Watch the boxes light up green one by one (takes 1–2 min for 2 companies).
 
 Now check the results:
-- Open **Gmail ▸ Drafts** — you should see up to 2 new draft emails, each with a
-  **resume PDF attached** and a personalized message.
+- Open **Gmail ▸ Drafts** — you should see up to 2 new draft emails, each a
+  personalized message with a **link to your resume** (and a link to the project
+  repo + demo). No file is attached on the first email — that keeps it out of spam.
 - Open your **Google Sheet** — you should see up to 2 new rows.
 
-> ✅ **Done when:** you see real drafts in Gmail with resumes attached.
+> ✅ **Done when:** you see real drafts in Gmail with the resume + repo links in them.
 >
 > 🆘 If a box turns **red**, click it to read the error, then paste that error to
 > Claude in this chat. (Common ones: wrong credential picked, or Claude account
@@ -262,8 +253,8 @@ Now check the results:
 Open one of the draft emails. Ask yourself:
 - Does it sound like me? → if not, edit the "Voice notes" section in `profile.md`.
 - Is the resume accurate? → if it's thin, add more detail to `profile.md`.
-- Is it emailing the right person? → adjust titles in the **Apollo: Find People**
-  box if needed (see README).
+- Is it emailing the right person? → adjust the title ranking in the **Pick Decision
+  Maker** box if needed (see README).
 
 Re-run Step 7 until you love the output. **This is the tuning phase — worth doing.**
 
@@ -313,6 +304,13 @@ I built you a dashboard file: `outreach/dashboard.html`.
 Re-download + reload whenever you want a fresh view. (Setup instructions for a
 live auto-updating version are inside the dashboard itself.)
 
+> 🌐 **Want a public demo?** A ready-made anonymized dataset lives at
+> `outreach/sample_outreach.csv`. To publish the dashboard as a live page a founder
+> can click (the proof-of-work move): make the repo public, enable **GitHub Pages**
+> on the repo (Settings ▸ Pages ▸ deploy from `main`), and the dashboard loads
+> `sample_outreach.csv` so visitors see it running without any of your real contacts.
+> Put that Pages URL in `repo_url`/`resume_url` context and link it from the email.
+
 ---
 
 # 🆘 TROUBLESHOOTING CHEAT SHEET
@@ -325,7 +323,7 @@ live auto-updating version are inside the dashboard itself.)
 | "credential not selected" | Open that box, pick the matching credential from dropdown |
 | No drafts appeared | Check the Gmail box uses the Gmail credential; check status column in sheet for skip reasons |
 | Claude box errors about credits | Add $5 at console.anthropic.com ▸ Billing |
-| Emails go to wrong person | Edit titles list in **Apollo: Find People** box |
+| Emails go to wrong person | Edit the title ranking in **Pick Decision Maker** box |
 | It emailed someone twice | Shouldn't happen — the sheet prevents it. Don't delete sheet rows |
 | Want fewer/more per day | **Limit Per Run** box → change Max Items |
 

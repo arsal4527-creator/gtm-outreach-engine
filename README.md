@@ -18,7 +18,7 @@ then follows up automatically.
 ## What it does
 
 ```
-Scrape GTM jobs (LinkedIn US/UK, full JDs)
+Scrape GTM jobs (RemoteOK + Arbeitnow + LinkedIn, full JDs)
       │
       ▼
 Dedupe to one role per company  ──►  Resolve company domain (Clearbit)
@@ -59,11 +59,11 @@ Draft / send via Gmail   ──►   log to Google Sheet   ──►   auto foll
 
 | Layer | Tool |
 |---|---|
-| Scraping | Python (`requests`, `BeautifulSoup`) — LinkedIn guest + jobPosting endpoints |
+| Scraping | Python (`requests`, `BeautifulSoup`) — RemoteOK + Arbeitnow APIs + LinkedIn guest endpoints |
 | Orchestration | n8n (self-hosted) |
 | Company domain | Clearbit autocomplete |
 | Contact + email | Hunter.io |
-| AI (research, email, resume) | Pluggable — Claude / Groq / Gemini |
+| AI (research, email, resume) | Claude (Anthropic) — model swappable in Config |
 | Resume → PDF | Headless Chrome |
 | Tracking | Google Sheets |
 | Sending + follow-up | Gmail |

@@ -23,7 +23,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// ====== EDIT YOUR SETTINGS HERE ======\nreturn [{ json: {\n  followup_after_days: 3,    // wait this many days before bumping\n  max_followups: 2,          // stop after this many bumps\n  model: 'claude-sonnet-4-6',\n  profile_path: '/Users/app/gtm-job-scraper/outreach/profile.md',\n} }];"
+        "jsCode": "// ====== EDIT YOUR SETTINGS HERE ======\nreturn [{ json: {\n  followup_after_days: 3,    // wait this many days before bumping\n  max_followups: 2,          // stop after this many bumps\n  model: 'claude-sonnet-4-6',\n  profile_path: '/Users/app/gtm-job-scraper/outreach/profile.md',\n  proof_video_url: 'https://YOUR_CLAY_WORKFLOW_LOOM',   // Loom of your real Clay tables + workflows; appended to follow-ups only, never the first email\n} }];"
       },
       "id": "f02",
       "name": "Config (Follow-ups)",
@@ -77,7 +77,10 @@
           "id": "Q3PiNCYkT2XeUu0t",
           "name": "Google Sheets account"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 6,
+      "waitBetweenTries": 18000
     },
     {
       "parameters": {
@@ -226,12 +229,15 @@
           "id": "Q3PiNCYkT2XeUu0t",
           "name": "Google Sheets account"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 6,
+      "waitBetweenTries": 18000
     },
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const row = $input.item.json;\nconst profile = (($('Load Profile (FU)').first().json.stdout || '') + '').slice(0, 800);\nconst prompt = `Write a short follow-up email (plain text, body only, no subject) from Arsal to ${row.contact_name} (${row.contact_title}) at ${row.company}.\nContext: Arsal already emailed them about their ${row.position} opening with this angle: \"${row.one_liner}\". No reply yet. This is follow-up number ${Number(row.followups || 0) + 1}.\nRules: sound like a real person bumping a thread, not a salesbot. 2 to 4 short sentences. Add ONE new concrete idea Arsal would build for them as their GTM engineer. No apologies, no \"just checking in\", no \"circling back\", no filler. End with one easy question. Use the name/sign-off style from this profile: ${profile}\nReturn ONLY the email body text.`;\nreturn { json: { ...row, prompt } };"
+        "jsCode": "const row = $input.item.json;\nconst profile = (($('Load Profile (FU)').first().json.stdout || '') + '').slice(0, 800);\nconst prompt = `Write a short follow-up email (plain text, body only, no subject) from Arsal to ${row.contact_name} (${row.contact_title}) at ${row.company}.\nContext: Arsal already emailed them about their ${row.position} opening with this angle: \"${row.one_liner}\". No reply yet. This is follow-up number ${Number(row.followups || 0) + 1}.\nRules: sound like a real person bumping a thread, not a salesbot. 2 to 4 short sentences. Add ONE new concrete idea Arsal would build for them as their GTM engineer. No apologies, no \"just checking in\", no \"circling back\", no filler. End with one easy question and include the booking link: https://calendly.com/arsal4527/gtm-strategy . Use the name/sign-off style from this profile: ${profile}\nReturn ONLY the email body text.`;\nreturn { json: { ...row, prompt } };"
       },
       "id": "f12",
       "name": "Build Bump Prompt",
@@ -263,7 +269,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ model: $('Config').first().json.model, max_tokens: 400, messages: [{ role: 'user', content: $json.prompt }] }) }}",
+        "jsonBody": "={{ JSON.stringify({ model: $('Config (Follow-ups)').first().json.model, max_tokens: 400, messages: [{ role: 'user', content: $json.prompt }] }) }}",
         "options": {}
       },
       "id": "f13",
@@ -287,7 +293,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const row = $('Build Bump Prompt').item.json;\nconst res = $input.item.json || {};\nlet text = (res.content && res.content[0] && res.content[0].text) || '';\ntext = text.replace(/^```\\s*/m, '').replace(/```\\s*$/m, '').trim();\nconst { prompt, ...rest } = row;\nreturn { json: { ...rest, bump_text: text } };"
+        "jsCode": "const row = $('Build Bump Prompt').item.json;\nconst res = $input.item.json || {};\nlet text = (res.content && res.content[0] && res.content[0].text) || '';\ntext = text.replace(/^```\\s*/m, '').replace(/```\\s*$/m, '').trim();\nconst { prompt, ...rest } = row;\nconst cfg = $('Config (Follow-ups)').first().json;\nif (cfg.proof_video_url && cfg.proof_video_url.indexOf('YOUR_') === -1 && text.indexOf(cfg.proof_video_url) === -1) text = text.replace(/\\s+$/, '') + '\\n\\nPut together a quick walkthrough of a couple GTM systems I built, if it helps: ' + cfg.proof_video_url;\nreturn { json: { ...rest, bump_text: text } };"
       },
       "id": "f14",
       "name": "Parse Bump",
@@ -374,7 +380,10 @@
           "id": "Q3PiNCYkT2XeUu0t",
           "name": "Google Sheets account"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 6,
+      "waitBetweenTries": 18000
     }
   ],
   "connections": {
