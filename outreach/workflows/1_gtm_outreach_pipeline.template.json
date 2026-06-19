@@ -721,7 +721,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const job = $('Resolve Domain').item.json;\nconst r = $input.item.json || {};\nconst data = r.data || {};\nconst emails = Array.isArray(data.emails) ? data.emails : [];\nconst domain = data.domain || '';\nfunction rank(pos){\n  pos=(pos||'').toLowerCase();\n  if(/founder|co-?founder|owner/.test(pos)) return 0;\n  if(/\\bceo\\b|chief executive/.test(pos)) return 1;\n  if(/\\bcro\\b|chief revenue/.test(pos)) return 2;\n  if(/(vp|vice president|head|director).*(revenue|sales)/.test(pos)) return 3;\n  if(/(vp|vice president|head|director).*(growth)/.test(pos)) return 4;\n  if(/\\bcmo\\b|(vp|vice president|head|director).*(marketing)/.test(pos)) return 5;\n  if(/revenue operations|revops|sales operations/.test(pos)) return 6;\n  if(/founder|chief|vp|vice president|head|director|lead/.test(pos)) return 7;\n  return 9;\n}\nlet best=null;\nfor(const e of emails){\n  const email=((e.value||'')+'').trim();\n  if(!email.includes('@')) continue;\n  const conf=Number(e.confidence||0);\n  if(conf < 50) continue;\n  const score = rank(e.position)*1000 - conf;\n  if(!best || score < best.score) best={score, e, conf};\n}\nif(!best){\n  return { json: { ...job, contact_found:false, company_domain:domain,\n    skip_reason: emails.length ? 'no_confident_contact' : 'no_emails_found' } };\n}\nconst e=best.e;\nconst name=((e.first_name||'')+' '+(e.last_name||'')).trim();\nreturn { json: { ...job,\n  contact_found:true,\n  company_domain: domain,\n  company_website: domain ? ('https://'+domain) : (job.company_website||''),\n  company_headcount: job.company_headcount || '',\n  contact_name: name,\n  contact_title: e.position || '',\n  contact_email: e.value,\n  contact_linkedin: e.linkedin || '',\n  email_score: best.conf } };"
+        "jsCode": "const job = $('Resolve Domain').item.json;\nconst cfg = $('Config').first().json;\nconst r = $input.item.json || {};\nconst data = r.data || {};\nconst emails = Array.isArray(data.emails) ? data.emails : [];\nconst domain = data.domain || '';\n\n// Hunter returns headcount as a range string (e.g. \"11-50\", \"201-500\", \"1001-5000\", \"10001+\").\n// Use midpoint for filtering; unknown headcount passes through (don't drop free leads).\nconst hc = (data.headcount || '').trim();\nconst HEADCOUNT_MID = {\n  '1-10': 5, '11-50': 30, '51-200': 125, '201-500': 350,\n  '501-1000': 750, '1001-5000': 3000, '5001-10000': 7500, '10001+': 15000\n};\nconst mid = HEADCOUNT_MID[hc] || 0;\nconst cap = Number(cfg.max_employees || 400);\nif (mid && mid > cap) {\n  return { json: { ...job, contact_found: false, company_domain: domain,\n    company_headcount: hc, est_employees: mid,\n    skip_reason: 'too_big_~' + mid + '_(' + hc + ')' } };\n}\n\nfunction rank(pos){\n  pos=(pos||'').toLowerCase();\n  if(/founder|co-?founder|owner/.test(pos)) return 0;\n  if(/\\bceo\\b|chief executive/.test(pos)) return 1;\n  if(/\\bcro\\b|chief revenue/.test(pos)) return 2;\n  if(/(vp|vice president|head|director).*(revenue|sales)/.test(pos)) return 3;\n  if(/(vp|vice president|head|director).*(growth)/.test(pos)) return 4;\n  if(/\\bcmo\\b|(vp|vice president|head|director).*(marketing)/.test(pos)) return 5;\n  if(/revenue operations|revops|sales operations/.test(pos)) return 6;\n  if(/founder|chief|vp|vice president|head|director|lead/.test(pos)) return 7;\n  return 9;\n}\nlet best=null;\nfor(const e of emails){\n  const email=((e.value||'')+'').trim();\n  if(!email.includes('@')) continue;\n  const conf=Number(e.confidence||0);\n  if(conf < 50) continue;\n  const score = rank(e.position)*1000 - conf;\n  if(!best || score < best.score) best={score, e, conf};\n}\nif(!best){\n  return { json: { ...job, contact_found:false, company_domain:domain,\n    company_headcount: hc,\n    skip_reason: emails.length ? 'no_confident_contact' : 'no_emails_found' } };\n}\nconst e=best.e;\nconst name=((e.first_name||'')+' '+(e.last_name||'')).trim();\nreturn { json: { ...job,\n  contact_found:true,\n  company_domain: domain,\n  company_website: domain ? ('https://'+domain) : (job.company_website||''),\n  company_headcount: hc || job.company_headcount || '',\n  est_employees: mid,\n  contact_name: name,\n  contact_title: e.position || '',\n  contact_email: e.value,\n  contact_linkedin: e.linkedin || '',\n  email_score: best.conf } };"
       },
       "id": "n18b",
       "name": "Pick Decision Maker",
@@ -744,96 +744,6 @@
       "position": [
         2900,
         380
-      ]
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "https://api.anthropic.com/v1/messages",
-        "authentication": "predefinedCredentialType",
-        "nodeCredentialType": "anthropicApi",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "anthropic-version",
-              "value": "2023-06-01"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ model: $('Config').first().json.model, max_tokens: 60, messages: [{ role: 'user', content: 'You estimate company size. Using the company name and job description, give your single best estimate of TOTAL employee headcount as an integer. Weigh signals: funding stage, \\'founding/first/early\\' GTM language, team-size mentions, customer scale, number of products/offices. Reply with ONLY JSON, no prose: {\"employees\": <integer>}. Company: ' + $json.company + '. JD: ' + (($json.job_description||'')+'').slice(0,1500) }] }) }}",
-        "options": {}
-      },
-      "id": "nsz1",
-      "name": "Estimate Size",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        3000,
-        560
-      ],
-      "onError": "continueRegularOutput",
-      "retryOnFail": true,
-      "maxTries": 3,
-      "waitBetweenTries": 5000,
-      "credentials": {
-        "anthropicApi": {
-          "id": "bT4vqK9QEP0Fstbp",
-          "name": "Anthropic account"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "mode": "runOnceForEachItem",
-        "jsCode": "const job = $('Resolve Domain').item.json;\nconst res = $input.item.json || {};\nlet txt = (res.content && res.content[0] && res.content[0].text) || '';\nconst m = txt.match(/\\d[\\d,]*/);\nconst emp = m ? parseInt(m[0].replace(/,/g,'')) : 0;\nconst cap = Number($('Config').first().json.max_employees || 50);\nconst ok = (!emp) || emp <= cap;   // unknown estimate -> don't filter out\nreturn { json: { ...job, est_employees: emp, size_ok: ok, skip_reason: ok ? '' : ('too_big_~' + emp) } };"
-      },
-      "id": "nsz2",
-      "name": "Check Size",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        3000,
-        700
-      ]
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "loose"
-          },
-          "conditions": [
-            {
-              "id": "cs1",
-              "leftValue": "={{ $json.size_ok }}",
-              "rightValue": "",
-              "operator": {
-                "type": "boolean",
-                "operation": "true",
-                "singleValue": true
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "id": "nsz3",
-      "name": "Size OK?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [
-        3000,
-        840
       ]
     }
   ],
@@ -1230,47 +1140,7 @@
       "main": [
         [
           {
-            "node": "Estimate Size",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Estimate Size": {
-      "main": [
-        [
-          {
-            "node": "Check Size",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Check Size": {
-      "main": [
-        [
-          {
-            "node": "Size OK?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Size OK?": {
-      "main": [
-        [
-          {
             "node": "Hunter: Domain Search",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Log Skipped",
             "type": "main",
             "index": 0
           }
